@@ -7,7 +7,7 @@ namespace FileUploader\Services;
  */
 class FileUploaderService
 {
-    private $default_options = [
+    private $defaultOptions = [
         'limit'              => null,
         'maxSize'            => null,
         'fileMaxSize'        => null,
@@ -39,10 +39,10 @@ class FileUploaderService
      */
     public function __construct($name, $options = null)
     {
-        $this->default_options['move_uploaded_file'] = function ($tmp, $dest) {
+        $this->defaultOptions['move_uploaded_file'] = function ($tmp, $dest) {
             return \move_uploaded_file($tmp, $dest);
         };
-        $this->default_options['validate_file'] = function ($file, $options) {
+        $this->defaultOptions['validate_file'] = function ($file, $options) {
             return true;
         };
         return $this->initialize($name, $options);
@@ -60,7 +60,7 @@ class FileUploaderService
     private function initialize($name, $options)
     {
         // merge options
-        $this->options = $this->default_options;
+        $this->options = $this->defaultOptions;
         if ($options) {
             $this->options = \array_merge($this->options, $options);
         }
@@ -126,21 +126,19 @@ class FileUploaderService
      * getFileList method
      * Get the list of the appended and uploaded files
      *
-     * @param mixed $customKey File attrbite that should be in the list
-     * @return array|null
+     * @param string $customKey File attrbite that should be in the list
+     * @return array
      */
-    public function getFileList($customKey = null)
+    public function getFileList($customKey = '')
     {
-        $result = null;
+        $result = [];
 
-        if ($customKey !== null) {
-            $result = [];
-            foreach ($this->options['files'] as $key => $value) {
-                $attribute = $this->getFileAttribute($value, $customKey);
-                $result[] = $attribute ? $attribute : $value['file'];
-            }
-        } else {
-            $result = $this->options['files'];
+        if (empty($customKey)) {
+            return $this->options['files'];
+        }
+        foreach ($this->options['files'] as $key => $value) {
+            $attribute = $this->getFileAttribute($value, $customKey);
+            $result[] = $attribute ? $attribute : $value['file'];
         }
 
         return $result;
@@ -619,15 +617,15 @@ class FileUploaderService
             if (!file_exists($this->options['uploadDir']) && !\is_writable($this->options['uploadDir']))
                 return $this->codeToMessage('invalid_folder_path');
 
-            $total_size = 0;
+            $totalSize = 0;
             foreach ($this->field['input']['size'] as $key => $value) {
-                $total_size += $value;
+                $totalSize += $value;
             }
-            $total_size = $total_size / 1000000;
-            if ($ini[2] != 0 && $total_size > $ini[2]) {
+            $totalSize = $totalSize / 1000000;
+            if ($ini[2] != 0 && $totalSize > $ini[2]) {
                 return $this->codeToMessage('post_max_size');
             }
-            if ($this->options['maxSize'] && $total_size > $this->options['maxSize']) {
+            if ($this->options['maxSize'] && $totalSize > $this->options['maxSize']) {
                 return $this->codeToMessage('max_files_size');
             }
         } else {
@@ -778,10 +776,10 @@ class FileUploaderService
      *
      * @public
      * @static
-     * @param $directory {String} Directory scan
-     * @param $time {String} Time difference
+     * @param $directory string Directory scan
+     * @param $time string Time difference
      */
-    public static function clean_chunked_files($directory, $time = '-1 hour')
+    public static function cleanChunkedFiles($directory, $time = '-1 hour')
     {
         if (!\is_dir($directory))
             return;
@@ -799,12 +797,11 @@ class FileUploaderService
      * codeToMessage method
      * Translate a warning code into text
      *
-     * @private
-     * @param $code {Number, String}
-     * @param $file {null, Array}
-     * @return {String}
+     * @param $code string
+     * @param $file array
+     * @return string
      */
-    private function codeToMessage($code, $file = null)
+    private function codeToMessage($code, $file = [])
     {
         $message = null;
 
@@ -859,6 +856,11 @@ class FileUploaderService
         return $message;
     }
 
+    /**
+     * @param array $file
+     * @param string $attribute
+     * @return mixed
+     */
     private function getFileAttribute($file, $attribute)
     {
         $result = null;
