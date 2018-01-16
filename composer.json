@@ -1,0 +1,17 @@
+{
+  "name": "stereoflo/fileuploader",
+  "description": "Image uploader",
+  "authors": [
+    {
+      "name": "StereoFlo",
+      "email": "stereoflo@stereoflo.ru"
+    }
+  ],
+  "require": {},
+  "type": "library",
+  "autoload": {
+    "psr-4": {
+      "FileUploader\\": "src/"
+    }
+  }
+}
