@@ -1,6 +1,6 @@
 # fileuploader
 
-This repo makes for personal use only
+This repo has make for personal use only
 
 
 ### Install for laravel:
