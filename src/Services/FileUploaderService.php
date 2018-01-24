@@ -83,17 +83,7 @@ class FileUploaderService
             // set field input
             $this->field['input'] = $_FILES[$name];
 
-            // tranform an no-multiple input to multiple
-            // made only to simplify the next uploading steps
-            if (!\is_array($this->field['input']['name'])) {
-                $this->field['input'] = \array_merge($this->field['input'], [
-                    "name"     => [$this->field['input']['name']],
-                    "tmp_name" => [$this->field['input']['tmp_name']],
-                    "type"     => [$this->field['input']['type']],
-                    "error"    => [$this->field['input']['error']],
-                    "size"     => [$this->field['input']['size']],
-                ]);
-            }
+            $this->transformToMultiple();
 
             // remove empty filenames
             // only for addMore option
@@ -104,6 +94,68 @@ class FileUploaderService
             return true;
         }
         return false;
+    }
+
+    /**
+     * @param $destination
+     * @param $quality
+     * @param $imageType
+     * @param $dest
+     */
+    private static function cretaeImage($destination, $quality, $imageType, $dest)
+    {
+        switch ($imageType) {
+            case IMAGETYPE_GIF:
+                \imagegif($dest, $destination);
+                break;
+            case IMAGETYPE_JPEG:
+                \imagejpeg($dest, $destination, $quality);
+                break;
+            case IMAGETYPE_PNG:
+                \imagepng($dest, $destination, 10 - $quality / 10);
+                break;
+        }
+    }
+
+    /**
+     * @param $destExt
+     *
+     * @return int
+     */
+    private static function getImageType($destExt)
+    {
+        $imageType = 0;
+        if (\in_array($destExt, ['gif', 'jpg', 'jpeg', 'png'])) {
+            if ($destExt === 'gif') {
+                $imageType = IMAGETYPE_GIF;
+            }
+            if ($destExt === 'jpg' || $destExt === 'jpeg') {
+                $imageType = IMAGETYPE_JPEG;
+            }
+            if ($destExt === 'png') {
+                $imageType = IMAGETYPE_PNG;
+            }
+        }
+        return $imageType;
+    }
+
+    /**
+     * @param $destination
+     *
+     * @return array
+     */
+    private static function detectTypeAndExt($destination)
+    {
+        $imageType = null;
+        $destExt = \strtolower(\substr($destination, \strrpos($destination, '.') + 1));
+        if (\pathinfo($destination, PATHINFO_EXTENSION)) {
+            $imageType = self::getImageType($destExt);
+            if (empty($imageType)) {
+                $imageType = IMAGETYPE_JPEG;
+                $destination .= '.jpg';
+            }
+        }
+        return [$imageType, $destination];
     }
 
     /**
@@ -277,19 +329,7 @@ class FileUploaderService
         list ($imageWidth, $imageHeight, $imageType) = $imageInfo;
 
         // create GD image
-        switch ($imageType) {
-            case IMAGETYPE_GIF:
-                $source = \imagecreatefromgif($filename);
-                break;
-            case IMAGETYPE_JPEG:
-                $source = \imagecreatefromjpeg($filename);
-                break;
-            case IMAGETYPE_PNG:
-                $source = \imagecreatefrompng($filename);
-                break;
-            default:
-                return false;
-        }
+        $source = self::getGdImage($imageType, $filename);
 
         // rotation
         if ($hasRotation) {
@@ -312,6 +352,7 @@ class FileUploaderService
             'height'     => $imageHeight,
             '_paramCrop' => $crop,
         ], \is_array($crop) ? $crop : []);
+
         if (\is_array($crop['_paramCrop'])) {
             $crop['left'] = $crop['_paramCrop']['left'];
             $crop['top'] = $crop['_paramCrop']['top'];
@@ -334,9 +375,9 @@ class FileUploaderService
 
             if ($crop['_paramCrop'] === true) {
                 if ($crop['width'] > $crop['height']) {
-                    $crop['width'] = ceil($crop['width'] - ($crop['width'] * abs($ratio - $width / $height)));
+                    $crop['width'] = \ceil($crop['width'] - ($crop['width'] * \abs($ratio - $width / $height)));
                 } else {
-                    $crop['height'] = ceil($crop['height'] - ($crop['height'] * abs($ratio - $width / $height)));
+                    $crop['height'] = \ceil($crop['height'] - ($crop['height'] * \abs($ratio - $width / $height)));
                 }
             } else {
                 if ($width / $height > $ratio) {
@@ -349,66 +390,14 @@ class FileUploaderService
 
         // save
         $dest = null;
-        $destExt = \strtolower(\substr($destination, \strrpos($destination, '.') + 1));
-        if (\pathinfo($destination, PATHINFO_EXTENSION)) {
-            if (\in_array($destExt, ['gif', 'jpg', 'jpeg', 'png'])) {
-                if ($destExt === 'gif') {
-                    $imageType = IMAGETYPE_GIF;
-                }
-                if ($destExt === 'jpg' || $destExt === 'jpeg') {
-                    $imageType = IMAGETYPE_JPEG;
-                }
-                if ($destExt === 'png') {
-                    $imageType = IMAGETYPE_PNG;
-                }
-            }
-        } else {
-            $imageType = IMAGETYPE_JPEG;
-            $destination .= '.jpg';
-        }
-        switch ($imageType) {
-            case IMAGETYPE_GIF:
-                $dest = \imagecreatetruecolor($width, $height);
-                $background = \imagecolorallocatealpha($dest, 255, 255, 255, 1);
-                \imagecolortransparent($dest, $background);
-                \imagefill($dest, 0, 0, $background);
-                \imagesavealpha($dest, true);
-                break;
-            case IMAGETYPE_JPEG:
-                $dest = \imagecreatetruecolor($width, $height);
-                $background = \imagecolorallocate($dest, 255, 255, 255);
-                \imagefilledrectangle($dest, 0, 0, $width, $height, $background);
-                break;
-            case IMAGETYPE_PNG:
-                if (!\imageistruecolor($source)) {
-                    $dest = \imagecreate($width, $height);
-                    $background = \imagecolorallocatealpha($dest, 255, 255, 255, 1);
-                    \imagecolortransparent($dest, $background);
-                    \imagefill($dest, 0, 0, $background);
-                } else {
-                    $dest = \imagecreatetruecolor($width, $height);
-                }
-                \imagealphablending($dest, false);
-                \imagesavealpha($dest, true);
-                break;
-            default:
-                return false;
-        }
+        list($imageType, $destination) = self::detectTypeAndExt($destination);
+
+        self::manipulateImage($imageType, $width, $height, $source);
 
         \imageinterlace($dest, true);
         \imagecopyresampled($dest, $source, 0, 0, $crop['left'], $crop['top'], $width, $height, $crop['width'], $crop['height']);
 
-        switch ($imageType) {
-            case IMAGETYPE_GIF:
-                \imagegif($dest, $destination);
-                break;
-            case IMAGETYPE_JPEG:
-                \imagejpeg($dest, $destination, $quality);
-                break;
-            case IMAGETYPE_PNG:
-                \imagepng($dest, $destination, 10 - $quality / 10);
-                break;
-        }
+        self::cretaeImage($destination, $quality, $imageType, $dest);
 
         \imagedestroy($source);
         \imagedestroy($dest);
@@ -1166,6 +1155,9 @@ class FileUploaderService
     }
 
     /**
+     * remove empty filenames
+     * only for addMore option
+     *
      * @return $this
      */
     private function removeEmptyFiles()
@@ -1196,5 +1188,85 @@ class FileUploaderService
     private function isChunk()
     {
         return isset($_POST['_chunkedd']) && \count($this->field['input']['name']) === 1 ? \json_decode($_POST['_chunkedd'], true) : false;
+    }
+
+    /**
+     * tranform an no-multiple input to multiple
+     * made only to simplify the next uploading steps
+     */
+    private function transformToMultiple()
+    {
+        if (!\is_array($this->field['input']['name'])) {
+            $this->field['input'] = \array_merge($this->field['input'], [
+                "name"     => [$this->field['input']['name']],
+                "tmp_name" => [$this->field['input']['tmp_name']],
+                "type"     => [$this->field['input']['type']],
+                "error"    => [$this->field['input']['error']],
+                "size"     => [$this->field['input']['size']],
+            ]);
+        }
+        return $this;
+    }
+
+    /**
+     * create GD image
+     *
+     * @param $imageType
+     * @param $filename
+     *
+     * @return bool|resource
+     */
+    private static function getGdImage($imageType, $filename)
+    {
+        switch ($imageType) {
+            case IMAGETYPE_GIF:
+                return \imagecreatefromgif($filename);
+            case IMAGETYPE_JPEG:
+                return \imagecreatefromjpeg($filename);
+            case IMAGETYPE_PNG:
+                return $source = \imagecreatefrompng($filename);
+            default:
+                return null;
+        }
+    }
+
+    /**
+     * @param $imageType
+     * @param $width
+     * @param $height
+     * @param $source
+     *
+     * @return bool
+     */
+    private static function manipulateImage($imageType, $width, $height, $source)
+    {
+        switch ($imageType) {
+            case IMAGETYPE_GIF:
+                $dest = \imagecreatetruecolor($width, $height);
+                $background = \imagecolorallocatealpha($dest, 255, 255, 255, 1);
+                \imagecolortransparent($dest, $background);
+                \imagefill($dest, 0, 0, $background);
+                \imagesavealpha($dest, true);
+                break;
+            case IMAGETYPE_JPEG:
+                $dest = \imagecreatetruecolor($width, $height);
+                $background = \imagecolorallocate($dest, 255, 255, 255);
+                \imagefilledrectangle($dest, 0, 0, $width, $height, $background);
+                break;
+            case IMAGETYPE_PNG:
+                if (!\imageistruecolor($source)) {
+                    $dest = \imagecreate($width, $height);
+                    $background = \imagecolorallocatealpha($dest, 255, 255, 255, 1);
+                    \imagecolortransparent($dest, $background);
+                    \imagefill($dest, 0, 0, $background);
+                } else {
+                    $dest = \imagecreatetruecolor($width, $height);
+                }
+                \imagealphablending($dest, false);
+                \imagesavealpha($dest, true);
+                break;
+            default:
+                return false;
+        }
     }
 }
