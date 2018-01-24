@@ -1,4 +1,5 @@
 <?php
+
 namespace FileUploader\Services;
 
 /**
@@ -34,7 +35,8 @@ class FileUploaderService
      * __construct method
      *
      * @public
-     * @param $name {$_FILES key}
+     *
+     * @param $name    {$_FILES key}
      * @param $options {null, Array}
      */
     public function __construct($name, $options = null)
@@ -53,8 +55,10 @@ class FileUploaderService
      * initialize the plugin
      *
      * @private
-     * @param $name {String} Input name
+     *
+     * @param $name    {String} Input name
      * @param $options {null, Array}
+     *
      * @return bool
      */
     private function initialize($name, $options)
@@ -93,15 +97,7 @@ class FileUploaderService
 
             // remove empty filenames
             // only for addMore option
-            foreach ($this->field['input']['name'] as $key => $value) {
-                if (empty($value)) {
-                    unset($this->field['input']['name'][$key]);
-                    unset($this->field['input']['type'][$key]);
-                    unset($this->field['input']['tmp_name'][$key]);
-                    unset($this->field['input']['error'][$key]);
-                    unset($this->field['input']['size'][$key]);
-                }
-            }
+            $this->removeEmptyFiles();
 
             // set field length (files count)
             $this->field['count'] = \count($this->field['input']['name']);
@@ -127,6 +123,7 @@ class FileUploaderService
      * Get the list of the appended and uploaded files
      *
      * @param string $customKey File attrbite that should be in the list
+     *
      * @return array
      */
     public function getFileList($customKey = '')
@@ -149,7 +146,9 @@ class FileUploaderService
      * Get removed files as array
      *
      * @public
+     *
      * @param $customKey {String} The file attribute which is also defined in listInput element
+     *
      * @return array
      */
     public function getRemovedFiles($customKey = 'file')
@@ -158,7 +157,8 @@ class FileUploaderService
 
         if (\is_array($this->field['listInput']['list']) && \is_array($this->options['files'])) {
             foreach ($this->options['files'] as $key => $value) {
-                if (!\in_array($this->getFileAttribute($value, $customKey), $this->field['listInput']['list']) && (!isset($value['uploaded']) || !$value['uploaded'])) {
+                if (!\in_array($this->getFileAttribute($value, $customKey),
+                        $this->field['listInput']['list']) && (!isset($value['uploaded']) || !$value['uploaded'])) {
                     $removedFiles[] = $value;
                     unset($this->options['files'][$key]);
                 }
@@ -237,35 +237,41 @@ class FileUploaderService
      *
      * @public
      * @static
-     * @param $filename {String} file source
-     * @param $width {Number} new width
-     * @param $height {Number} new height
+     *
+     * @param $filename    {String} file source
+     * @param $width       {Number} new width
+     * @param $height      {Number} new height
      * @param $destination {String} file destination
-     * @param $crop {boolean, Array} crop property
-     * @param $quality {Number} quality of destination
-     * @param $rotation {Number} rotation degrees
+     * @param $crop        {boolean, Array} crop property
+     * @param $quality     {Number} quality of destination
+     * @param $rotation    {Number} rotation degrees
+     *
      * @return bool resizing was successful
      */
     public static function resize($filename, $width = null, $height = null, $destination = null, $crop = false, $quality = 90, $rotation = 0)
     {
-        if (!\is_file($filename) || !\is_readable($filename))
+        if (!\is_file($filename) || !\is_readable($filename)) {
             return false;
+        }
 
         $source = null;
         $destination = !$destination ? $filename : $destination;
-        if (\file_exists($destination) && !\is_writable($destination))
+        if (\file_exists($destination) && !\is_writable($destination)) {
             return false;
+        }
         $imageInfo = getimagesize($filename);
-        if (!$imageInfo)
+        if (!$imageInfo) {
             return false;
+        }
 
         // detect actions
         $hasRotation = $rotation;
         $hasCrop = \is_array($crop) || $crop == true;
         $hasResizing = $width || $height;
 
-        if (!$hasRotation && !$hasCrop && !$hasResizing)
+        if (!$hasRotation && !$hasCrop && !$hasResizing) {
             return false;
+        }
 
         // store image information
         list ($imageWidth, $imageHeight, $imageType) = $imageInfo;
@@ -346,12 +352,15 @@ class FileUploaderService
         $destExt = \strtolower(\substr($destination, \strrpos($destination, '.') + 1));
         if (\pathinfo($destination, PATHINFO_EXTENSION)) {
             if (\in_array($destExt, ['gif', 'jpg', 'jpeg', 'png'])) {
-                if ($destExt === 'gif')
+                if ($destExt === 'gif') {
                     $imageType = IMAGETYPE_GIF;
-                if ($destExt === 'jpg' || $destExt === 'jpeg')
+                }
+                if ($destExt === 'jpg' || $destExt === 'jpeg') {
                     $imageType = IMAGETYPE_JPEG;
-                if ($destExt === 'png')
+                }
+                if ($destExt === 'png') {
                     $imageType = IMAGETYPE_PNG;
+                }
             }
         } else {
             $imageType = IMAGETYPE_JPEG;
@@ -423,8 +432,8 @@ class FileUploaderService
             "files"       => [],
         ];
         $listInput = $this->field['listInput'];
-        $uploadDir = \str_replace(\getcwd() . '/', '', $this->options['uploadDir']);
-        $chunk = isset($_POST['_chunkedd']) && \count($this->field['input']['name']) === 1 ? \json_decode($_POST['_chunkedd'], true) : false;
+        $uploadDir = $this->getUploadDirectory();
+        $chunk = $this->isChunk();
 
         if ($this->field['input']) {
             // validate ini settings and some generally options
@@ -444,12 +453,14 @@ class FileUploaderService
 
                     // chunk
                     if ($chunk) {
-                        if (isset($chunk['isFirst']))
-                            $chunk['temp_name'] = $this->random_string(6) . time();
+                        if (isset($chunk['isFirst'])) {
+                            $chunk['temp_name'] = $this->random_string(6) . \time();
+                        }
 
                         $tmp_name = $uploadDir . '.unconfirmed_' . $this->filterFilename($chunk['temp_name']);
-                        if (!isset($chunk['isFirst']) && !file_exists($tmp_name))
+                        if (!isset($chunk['isFirst']) && !file_exists($tmp_name)) {
                             continue;
+                        }
                         $sp = fopen($file['tmp_name'], 'r');
                         $op = fopen($tmp_name, isset($chunk['isFirst']) ? 'w' : 'a');
                         while (!feof($sp)) {
@@ -481,7 +492,8 @@ class FileUploaderService
                     $metas['extension'] = \strtolower(\substr(\strrchr($file['name'], "."), 1));
                     $metas['type'] = $file['type'];
                     $metas['old_name'] = $file['name'];
-                    $metas['old_title'] = \substr($metas['old_name'], 0, (\strlen($metas['extension']) > 0 ? -(\strlen($metas['extension']) + 1) : \strlen($metas['old_name'])));
+                    $metas['old_title'] = \substr($metas['old_name'], 0,
+                        (\strlen($metas['extension']) > 0 ? -(\strlen($metas['extension']) + 1) : \strlen($metas['old_name'])));
                     $metas['size'] = $file['size'];
                     $metas['size2'] = $this->formatSize($file['size']);
                     $metas['name'] = $this->generateFileName($this->options['title'], [
@@ -489,7 +501,8 @@ class FileUploaderService
                         'size'      => $metas['size'],
                         'extension' => $metas['extension'],
                     ]);
-                    $metas['title'] = substr($metas['name'], 0, (\strlen($metas['extension']) > 0 ? -(\strlen($metas['extension']) + 1) : \strlen($metas['name'])));
+                    $metas['title'] = substr($metas['name'], 0,
+                        (\strlen($metas['extension']) > 0 ? -(\strlen($metas['extension']) + 1) : \strlen($metas['name'])));
                     $metas['file'] = $uploadDir . $metas['name'];
                     $metas['replaced'] = \file_exists($metas['file']);
                     $metas['date'] = \date('r');
@@ -512,10 +525,12 @@ class FileUploaderService
 
                             if ($listInput) {
                                 $fileListIndex = \array_search($listInputName, $listInput['list']);
-                                if (isset($listInput['values'][$fileListIndex]['editor']))
+                                if (isset($listInput['values'][$fileListIndex]['editor'])) {
                                     $metas['editor'] = $listInput['values'][$fileListIndex]['editor'];
-                                if (isset($listInput['values'][$fileListIndex]['index']))
+                                }
+                                if (isset($listInput['values'][$fileListIndex]['index'])) {
                                     $metas['index'] = $listInput['values'][$fileListIndex]['index'];
+                                }
                             } elseif (isset($_POST['_editorr']) && $this->isJSON($_POST['_editorr']) && \count($this->field['input']['name']) === 1) {
                                 $metas['editor'] = \json_decode($_POST['_editorr'], true);
                             }
@@ -528,16 +543,17 @@ class FileUploaderService
                             }
                         }
                     } else {
-                        if ($metas['chunked'] && \file_exists($metas['tmp_name']))
+                        if ($metas['chunked'] && \file_exists($metas['tmp_name'])) {
                             \unlink($metas['tmp_name']);
-                        if (!$fileInList)
+                        }
+                        if (!$fileInList) {
                             continue;
+                        }
 
                         $data['isSuccess'] = false;
                         $data['hasWarnings'] = true;
                         $data['warnings'][] = $validateFile;
                         $data['files'] = [];
-
                         break;
                     }
                 }
@@ -545,7 +561,8 @@ class FileUploaderService
                 // upload the files
                 if (!$data['hasWarnings']) {
                     foreach ($data['files'] as $key => $file) {
-                        if ($file['chunked'] ? \rename($file['tmp_name'], $file['file']) : $this->options['move_uploaded_file']($file['tmp_name'], $file['file'])) {
+                        if ($file['chunked'] ? \rename($file['tmp_name'], $file['file']) : $this->options['move_uploaded_file']($file['tmp_name'],
+                            $file['file'])) {
                             unset($data['files'][$key]['chunked']);
                             unset($data['files'][$key]['error']);
                             unset($data['files'][$key]['tmp_name']);
@@ -566,10 +583,12 @@ class FileUploaderService
             if ($lastPHPError && $lastPHPError['type'] == E_WARNING && $lastPHPError['line'] == 0) {
                 $errorMessage = null;
 
-                if (\strpos($lastPHPError['message'], "POST Content-Length") !== false)
+                if (false !== \strpos($lastPHPError['message'], "POST Content-Length")) {
                     $errorMessage = $this->codeToMessage(UPLOAD_ERR_INI_SIZE);
-                if (\strpos($lastPHPError['message'], "Maximum number of allowable file uploads") != false)
+                }
+                if (false !== \strpos($lastPHPError['message'], "Maximum number of allowable file uploads")) {
                     $errorMessage = $this->codeToMessage('max_number_of_files');
+                }
 
                 if ($errorMessage != null) {
                     $data['isSuccess'] = false;
@@ -579,7 +598,7 @@ class FileUploaderService
 
             }
 
-            if ($this->options['required'] && (isset($_SERVER) && \strtolower($_SERVER['REQUEST_METHOD']) == "post")) {
+            if ($this->options['required'] && (isset($_SERVER) && \strtolower($_SERVER['REQUEST_METHOD']) === 'post')) {
                 $data['hasWarnings'] = true;
                 $data['warnings'][] = $this->codeToMessage('required_and_no_file');
             }
@@ -599,7 +618,9 @@ class FileUploaderService
      * Check ini settings, field and files
      *
      * @private
+     *
      * @param $file array File metas
+     *
      * @return bool|string
      */
     private function validate($file = [])
@@ -608,21 +629,25 @@ class FileUploaderService
             // check ini settings and some generally options
             $ini = $this->getIniSettings();
 
-            if (!$ini[0])
+            if (!$ini[0]) {
                 return $this->codeToMessage('file_uploads');
-            if ($this->options['required'] && (isset($_SERVER) && \strtolower($_SERVER['REQUEST_METHOD']) == "post") && ($this->field['count'] + \count($this->options['files'])) === 0)
+            }
+            if ($this->options['required'] && (isset($_SERVER) && \strtolower($_SERVER['REQUEST_METHOD']) === "post") && ($this->field['count'] + \count($this->options['files'])) === 0) {
                 return $this->codeToMessage('required_and_no_file');
-            if (($this->options['limit'] && $this->field['count'] + \count($this->options['files']) > $this->options['limit']) || ($ini[3] !== 0 && ($this->field['count']) > $ini[3]))
+            }
+            if (($this->options['limit'] && $this->field['count'] + \count($this->options['files']) > $this->options['limit']) || ($ini[3] !== 0 && ($this->field['count']) > $ini[3])) {
                 return $this->codeToMessage('max_number_of_files');
-            if (!file_exists($this->options['uploadDir']) && !\is_writable($this->options['uploadDir']))
+            }
+            if (!file_exists($this->options['uploadDir']) && !\is_writable($this->options['uploadDir'])) {
                 return $this->codeToMessage('invalid_folder_path');
+            }
 
             $totalSize = 0;
             foreach ($this->field['input']['size'] as $key => $value) {
                 $totalSize += $value;
             }
             $totalSize = $totalSize / 1000000;
-            if ($ini[2] != 0 && $totalSize > $ini[2]) {
+            if ($ini[2] !== 0 && $totalSize > $ini[2]) {
                 return $this->codeToMessage('post_max_size');
             }
             if ($this->options['maxSize'] && $totalSize > $this->options['maxSize']) {
@@ -630,17 +655,23 @@ class FileUploaderService
             }
         } else {
             // check file
-            if ($file['error'] > 0)
+            if ($file['error'] > 0) {
                 return $this->codeToMessage($file['error'], $file);
-            if ($this->options['extensions'] && (!\in_array(strtolower($file['extension']), $this->options['extensions']) && !\in_array(\strtolower($file['type']), $this->options['extensions'])))
+            }
+            if ($this->options['extensions'] && (!\in_array(strtolower($file['extension']),
+                        $this->options['extensions']) && !\in_array(\strtolower($file['type']), $this->options['extensions']))) {
                 return $this->codeToMessage('accepted_file_types', $file);
-            if ($this->options['fileMaxSize'] && $file['size'] / 1000000 > $this->options['fileMaxSize'])
+            }
+            if ($this->options['fileMaxSize'] && $file['size'] / 1000000 > $this->options['fileMaxSize']) {
                 return $this->codeToMessage('max_file_size', $file);
-            if ($this->options['maxSize'] && $file['size'] / 1000000 > $this->options['maxSize'])
+            }
+            if ($this->options['maxSize'] && $file['size'] / 1000000 > $this->options['maxSize']) {
                 return $this->codeToMessage('max_file_size', $file);
+            }
             $custom_validation = $this->options['validate_file']($file, $this->options);
-            if ($custom_validation != true)
+            if (true !== $custom_validation) {
                 return $custom_validation;
+            }
         }
 
         return true;
@@ -651,14 +682,17 @@ class FileUploaderService
      * Get value from listInput
      *
      * @private
+     *
      * @param $name string FileUploader $_FILES name
+     *
      * @return null|array
      */
     private function getListInputFiles($name = null)
     {
         $inputName = 'fileuploader-list-' . ($name ? $name : $this->field['name']);
-        if (\is_string($this->options['listInput']))
+        if (\is_string($this->options['listInput'])) {
             $inputName = $this->options['listInput'];
+        }
 
         if (isset($_POST[$inputName]) && $this->isJSON($_POST[$inputName])) {
             $list = [
@@ -687,7 +721,7 @@ class FileUploaderService
 
         foreach ($files as $key => $file) {
             $listInputName = $file['file'];
-            $fileListIndex = is_array($listInput['list']) ? array_search($listInputName, $listInput['list']) : false;
+            $fileListIndex = \is_array($listInput['list']) ? \array_search($listInputName, $listInput['list']) : false;
 
             // add editor to appended files if available
             if ($fileListIndex !== false && isset($listInput['values'][$fileListIndex]['editor'])) {
@@ -715,7 +749,9 @@ class FileUploaderService
      * Sort all files that have an index from Front-End
      *
      * @private
+     *
      * @param $data - file list that also needs to be sorted
+     *
      * @return void
      */
     private function sortFiles(&$data = null)
@@ -733,7 +769,7 @@ class FileUploaderService
             }
         }
 
-        if (isset($this->options['files'][0]['index']))
+        if (isset($this->options['files'][0]['index'])) {
             \usort($this->options['files'], function ($a, $b) {
                 global $freeIndex;
 
@@ -749,6 +785,7 @@ class FileUploaderService
 
                 return $a['index'] - $b['index'];
             });
+        }
 
         if ($data && isset($data[0]['index'])) {
             $freeIndex = \count($data);
@@ -776,20 +813,23 @@ class FileUploaderService
      *
      * @public
      * @static
+     *
      * @param $directory string Directory scan
-     * @param $time string Time difference
+     * @param $time      string Time difference
      */
     public static function cleanChunkedFiles($directory, $time = '-1 hour')
     {
-        if (!\is_dir($directory))
+        if (!\is_dir($directory)) {
             return;
+        }
 
         $dir = \scandir($directory);
         $files = \array_diff($dir, ['.', '..']);
         foreach ($files as $key => $name) {
             $file = $directory . $name;
-            if (\strpos($name, '.unconfirmed_') === 0 && \filemtime($file) < \strtotime($time))
+            if (\strpos($name, '.unconfirmed_') === 0 && \filemtime($file) < \strtotime($time)) {
                 \unlink($file);
+            }
         }
     }
 
@@ -799,6 +839,7 @@ class FileUploaderService
      *
      * @param $code string
      * @param $file array
+     *
      * @return string
      */
     private function codeToMessage($code, $file = [])
@@ -857,8 +898,9 @@ class FileUploaderService
     }
 
     /**
-     * @param array $file
+     * @param array  $file
      * @param string $attribute
+     *
      * @return mixed
      */
     private function getFileAttribute($file, $attribute)
@@ -879,22 +921,23 @@ class FileUploaderService
      * Cover bytes to readable file size format
      *
      * @private
+     *
      * @param $bytes {Number}
+     *
      * @return {Number}
      */
     private function formatSize($bytes)
     {
         if ($bytes >= 1073741824) {
-            $bytes = number_format($bytes / 1073741824, 2) . ' GB';
-        } elseif ($bytes >= 1048576) {
-            $bytes = number_format($bytes / 1048576, 2) . ' MB';
-        } elseif ($bytes > 0) {
-            $bytes = number_format($bytes / 1024, 2) . ' KB';
-        } else {
-            $bytes = '0 bytes';
+            return number_format($bytes / 1073741824, 2) . ' GB';
         }
-
-        return $bytes;
+        if ($bytes >= 1048576) {
+            return number_format($bytes / 1048576, 2) . ' MB';
+        }
+        if ($bytes > 0) {
+            return number_format($bytes / 1024, 2) . ' KB';
+        }
+        return '0 bytes';
     }
 
     /**
@@ -902,13 +945,15 @@ class FileUploaderService
      * Check if string is a valid json
      *
      * @private
+     *
      * @param $string {String}
-     * @return {boolean}
+     *
+     * @return bool
      */
     private function isJson($string)
     {
-        json_decode($string);
-        return (json_last_error() == JSON_ERROR_NONE);
+        \json_decode($string);
+        return (\json_last_error() == JSON_ERROR_NONE);
     }
 
     /**
@@ -916,18 +961,20 @@ class FileUploaderService
      * Remove invalid characters from filename
      *
      * @private
+     *
      * @param $filename {String}
+     *
      * @return {String}
      */
     private function filterFilename($filename)
     {
         $delimiter = '_';
-        $invalidCharacters = array_merge(array_map('chr', range(0, 31)), ["<", ">", ":", '"', "/", "\\", "|", "?", "*"]);
+        $invalidCharacters = \array_merge(\array_map('chr', \range(0, 31)), ["<", ">", ":", '"', "/", "\\", "|", "?", "*"]);
 
         // remove invalid characters
-        $filename = str_replace($invalidCharacters, $delimiter, $filename);
+        $filename = \str_replace($invalidCharacters, $delimiter, $filename);
         // remove duplicate delimiters
-        $filename = preg_replace('/(' . preg_quote($delimiter, '/') . '){2,}/', '$1', $filename);
+        $filename = \preg_replace('/(' . \preg_quote($delimiter, '/') . '){2,}/', '$1', $filename);
 
         return $filename;
     }
@@ -937,16 +984,18 @@ class FileUploaderService
      * Generated a new file name
      *
      * @private
-     * @param $conf {null, String, Array} FileUploader title option
-     * @param $file {Array} File data as title, extension and size
+     *
+     * @param $conf               {null, String, Array} FileUploader title option
+     * @param $file               {Array} File data as title, extension and size
      * @param $skip_replace_check {boolean} Used only for recursive auto generating file name to exclude replacements
-     * @return {String}
+     *
+     * @return string
      */
     private function generateFilename($conf, $file, $skip_replace_check = false)
     {
-        $conf = !is_array($conf) ? [$conf] : $conf;
+        $conf = !\is_array($conf) ? [$conf] : $conf;
         $type = $conf[0];
-        $length = isset($conf[1]) ? (int)$conf[1] : 12;
+        $length = isset($conf[1]) ? (int) $conf[1] : 12;
         $random_string = $this->random_string($length);
         $extension = !empty($file['extension']) ? "." . $file['extension'] : "";
         $string = "";
@@ -961,34 +1010,35 @@ class FileUploaderService
                 break;
             default:
                 $string = $type;
-                $string_extension = substr(strrchr($string, "."), 1);
+                $string_extension = \substr(\strrchr($string, "."), 1);
 
-                $string = str_replace("{random}", $random_string, $string);
-                $string = str_replace("{file_name}", $file['title'], $string);
-                $string = str_replace("{file_size}", $file['size'], $string);
-                $string = str_replace("{timestamp}", time(), $string);
-                $string = str_replace("{date}", date('Y-n-d_H-i-s'), $string);
-                $string = str_replace("{extension}", $file['extension'], $string);
+                $string = \str_replace("{random}", $random_string, $string);
+                $string = \str_replace("{file_name}", $file['title'], $string);
+                $string = \str_replace("{file_size}", $file['size'], $string);
+                $string = \str_replace("{timestamp}", time(), $string);
+                $string = \str_replace("{date}", date('Y-n-d_H-i-s'), $string);
+                $string = \str_replace("{extension}", $file['extension'], $string);
 
                 if (!empty($string_extension)) {
                     if ($string_extension != "{extension}") {
-                        $type = substr($string, 0, -(strlen($string_extension) + 1));
+                        $type = \substr($string, 0, -(strlen($string_extension) + 1));
                         $extension = $file['extension'] = $string_extension;
                     } else {
-                        $type = substr($string, 0, -(strlen($file['extension']) + 1));
+                        $type = \substr($string, 0, -(strlen($file['extension']) + 1));
                         $extension = '';
                     }
                 }
         }
-        if ($extension && !preg_match('/' . $extension . '$/', $string))
+        if ($extension && !\preg_match('/' . $extension . '$/', $string)) {
             $string .= $extension;
+        }
 
         // generate another filename if a file with the same name already exists
         // only when replace options is true
         if (!$this->options['replace'] && !$skip_replace_check) {
             $title = $file['title'];
             $i = 1;
-            while (file_exists($this->options['uploadDir'] . $string)) {
+            while (\file_exists($this->options['uploadDir'] . $string)) {
                 $file['title'] = $title . " ({$i})";
                 $conf[0] = $type == "auto" || $type == "name" || strpos($string, "{random}") !== false ? $type : $type . " ({$i})";
                 $string = $this->generateFileName($conf, $file, true);
@@ -1004,7 +1054,9 @@ class FileUploaderService
      * Generate a random string
      *
      * @public
+     *
      * @param $length {Number} Number of characters
+     *
      * @return {String}
      */
     private function random_string($length = 12)
@@ -1018,7 +1070,9 @@ class FileUploaderService
      *
      * @public
      * @static
+     *
      * @param $file {String} File location
+     *
      * @return {String}
      */
     public static function mime_content_type($file)
@@ -1103,11 +1157,44 @@ class FileUploaderService
     private function getIniSettings()
     {
         return [
-            (boolean)\ini_get('file_uploads'),
-            (int)\ini_get('upload_max_filesize'),
-            (int)\ini_get('post_max_size'),
-            (int)\ini_get('max_file_uploads'),
-            (int)\ini_get('memory_limit'),
+            (boolean) \ini_get('file_uploads'),
+            (int) \ini_get('upload_max_filesize'),
+            (int) \ini_get('post_max_size'),
+            (int) \ini_get('max_file_uploads'),
+            (int) \ini_get('memory_limit'),
         ];
+    }
+
+    /**
+     * @return $this
+     */
+    private function removeEmptyFiles()
+    {
+        foreach ($this->field['input']['name'] as $key => $value) {
+            if (empty($value)) {
+                unset($this->field['input']['name'][$key]);
+                unset($this->field['input']['type'][$key]);
+                unset($this->field['input']['tmp_name'][$key]);
+                unset($this->field['input']['error'][$key]);
+                unset($this->field['input']['size'][$key]);
+            }
+        }
+        return $this;
+    }
+
+    /**
+     * @return mixed
+     */
+    private function getUploadDirectory()
+    {
+        return \str_replace(\getcwd() . '/', '', $this->options['uploadDir']);
+    }
+
+    /**
+     * @return bool|mixed
+     */
+    private function isChunk()
+    {
+        return isset($_POST['_chunkedd']) && \count($this->field['input']['name']) === 1 ? \json_decode($_POST['_chunkedd'], true) : false;
     }
 }
