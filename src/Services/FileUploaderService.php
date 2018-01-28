@@ -300,40 +300,47 @@ class FileUploaderService
      *
      * @return bool resizing was successful
      */
-    public static function resize($filename, $width = null, $height = null, $destination = null, $crop = false, $quality = 90, $rotation = 0)
-    {
-        if (!\is_file($filename) || !\is_readable($filename)) {
+    public static function resize($filename, $width = null, $height = null, $destination = null, $crop = false, $quality = 90, $rotation = 0) {
+        if (!is_file($filename) || !is_readable($filename))
             return false;
-        }
 
         $source = null;
         $destination = !$destination ? $filename : $destination;
-        if (\file_exists($destination) && !\is_writable($destination)) {
+        if (file_exists($destination) && !is_writable($destination))
             return false;
-        }
         $imageInfo = getimagesize($filename);
-        if (!$imageInfo) {
+        if (!$imageInfo)
             return false;
-        }
 
         // detect actions
         $hasRotation = $rotation;
-        $hasCrop = \is_array($crop) || $crop == true;
+        $hasCrop = is_array($crop) || $crop == true;
         $hasResizing = $width || $height;
 
-        if (!$hasRotation && !$hasCrop && !$hasResizing) {
-            return false;
-        }
+        if (!$hasRotation && !$hasCrop && !$hasResizing)
+            return;
 
         // store image information
         list ($imageWidth, $imageHeight, $imageType) = $imageInfo;
 
         // create GD image
-        $source = self::getGdImage($imageType, $filename);
+        switch($imageType) {
+            case IMAGETYPE_GIF:
+                $source = imagecreatefromgif($filename);
+                break;
+            case IMAGETYPE_JPEG:
+                $source = imagecreatefromjpeg($filename);
+                break;
+            case IMAGETYPE_PNG:
+                $source = imagecreatefrompng($filename);
+                break;
+            default:
+                return false;
+        }
 
         // rotation
         if ($hasRotation) {
-            if ($rotation === 90 || $rotation === 270) {
+            if ($rotation == 90 || $rotation == 270) {
                 $cacheWidth = $imageWidth;
                 $cacheHeight = $imageHeight;
 
@@ -341,19 +348,18 @@ class FileUploaderService
                 $imageHeight = $cacheWidth;
             }
             $rotation = $rotation * -1;
-            $source = \imagerotate($source, $rotation, 0);
+            $source = imagerotate($source, $rotation, 0);
         }
 
         // crop
-        $crop = \array_merge([
-            'left'       => 0,
-            'top'        => 0,
-            'width'      => $imageWidth,
-            'height'     => $imageHeight,
-            '_paramCrop' => $crop,
-        ], \is_array($crop) ? $crop : []);
-
-        if (\is_array($crop['_paramCrop'])) {
+        $crop = array_merge(array(
+            'left' => 0,
+            'top' => 0,
+            'width' => $imageWidth,
+            'height' => $imageHeight,
+            '_paramCrop' => $crop
+        ), is_array($crop) ? $crop : array());
+        if (is_array($crop['_paramCrop'])) {
             $crop['left'] = $crop['_paramCrop']['left'];
             $crop['top'] = $crop['_paramCrop']['top'];
             $crop['width'] = $crop['_paramCrop']['width'];
@@ -375,12 +381,12 @@ class FileUploaderService
 
             if ($crop['_paramCrop'] === true) {
                 if ($crop['width'] > $crop['height']) {
-                    $crop['width'] = \ceil($crop['width'] - ($crop['width'] * \abs($ratio - $width / $height)));
+                    $crop['width'] = ceil($crop['width'] - ($crop['width'] * abs($ratio - $width/$height)));
                 } else {
-                    $crop['height'] = \ceil($crop['height'] - ($crop['height'] * \abs($ratio - $width / $height)));
+                    $crop['height'] = ceil($crop['height'] - ($crop['height'] * abs($ratio - $width/$height)));
                 }
             } else {
-                if ($width / $height > $ratio) {
+                if ($width/$height > $ratio) {
                     $width = $height * $ratio;
                 } else {
                     $height = $width / $ratio;
@@ -390,17 +396,78 @@ class FileUploaderService
 
         // save
         $dest = null;
-        list($imageType, $destination) = self::detectTypeAndExt($destination);
+        $destExt = strtolower(substr($destination, strrpos($destination, '.') + 1));
+        if (pathinfo($destination, PATHINFO_EXTENSION)) {
+            if (in_array($destExt, array('gif', 'jpg', 'jpeg', 'png'))) {
+                if ($destExt == 'gif')
+                    $imageType = IMAGETYPE_GIF;
+                if ($destExt == 'jpg' || $destExt == 'jpeg')
+                    $imageType = IMAGETYPE_JPEG;
+                if ($destExt == 'png')
+                    $imageType = IMAGETYPE_PNG;
+            }
+        } else {
+            $imageType = IMAGETYPE_JPEG;
+            $destination .= '.jpg';
+        }
+        switch($imageType) {
+            case IMAGETYPE_GIF:
+                $dest = imagecreatetruecolor($width, $height);
+                $background = imagecolorallocatealpha($dest, 255, 255, 255, 1);
+                imagecolortransparent($dest, $background);
+                imagefill($dest, 0, 0 , $background);
+                imagesavealpha($dest, true);
+                break;
+            case IMAGETYPE_JPEG:
+                $dest = imagecreatetruecolor($width, $height);
+                $background = imagecolorallocate($dest, 255, 255, 255);
+                imagefilledrectangle($dest, 0, 0, $width, $height, $background);
+                break;
+            case IMAGETYPE_PNG:
+                if (!imageistruecolor($source)) {
+                    $dest = imagecreate($width, $height);
+                    $background = imagecolorallocatealpha($dest, 255, 255, 255, 1);
+                    imagecolortransparent($dest, $background);
+                    imagefill($dest, 0, 0 , $background);
+                } else {
+                    $dest = imagecreatetruecolor($width, $height);
+                }
+                imagealphablending($dest, false);
+                imagesavealpha($dest, true);
+                break;
+            default:
+                return false;
+        }
 
-        self::manipulateImage($imageType, $width, $height, $source);
+        imageinterlace($dest, true);
 
-        \imageinterlace($dest, true);
-        \imagecopyresampled($dest, $source, 0, 0, $crop['left'], $crop['top'], $width, $height, $crop['width'], $crop['height']);
+        imagecopyresampled(
+            $dest,
+            $source,
+            0,
+            0,
+            $crop['left'],
+            $crop['top'],
+            $width,
+            $height,
+            $crop['width'],
+            $crop['height']
+        );
 
-        self::cretaeImage($destination, $quality, $imageType, $dest);
+        switch ($imageType) {
+            case IMAGETYPE_GIF:
+                imagegif($dest, $destination);
+                break;
+            case IMAGETYPE_JPEG:
+                imagejpeg($dest, $destination, $quality);
+                break;
+            case IMAGETYPE_PNG:
+                imagepng($dest, $destination, 10-$quality/10);
+                break;
+        }
 
-        \imagedestroy($source);
-        \imagedestroy($dest);
+        imagedestroy($source);
+        imagedestroy($dest);
 
         return true;
     }
